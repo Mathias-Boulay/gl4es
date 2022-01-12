@@ -97,6 +97,7 @@ LOCAL_CFLAGS += -DNO_GBM
 LOCAL_CFLAGS += -DDEFAULT_ES=2
 //TODO: maybe temporary?
 LOCAL_CFLAGS += -Wno-typedef-redefinition -Wno-dangling-else
+LOCAL_CFLAGS += -D USE_EXPERIMENTAL_FEATURE=1
 
 LOCAL_LDLIBS := -llog
 
