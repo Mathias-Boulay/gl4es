@@ -32,7 +32,9 @@ void APIENTRY_GL4ES gl4es_glVertexAttribPointer(GLuint index, GLint size, GLenum
     v->size = size;
     v->type = type;
     v->normalized = normalized;
+#ifdef USE_EXPERIMENTAL_FEATURE
     v->integer = 0;
+#endif
     v->stride = stride;
     v->pointer = pointer;
     v->buffer = glstate->vao->vertex;
@@ -44,6 +46,7 @@ void APIENTRY_GL4ES gl4es_glVertexAttribPointer(GLuint index, GLint size, GLenum
         v->real_pointer = 0;
     }
 }
+#ifdef USE_EXPERIMENTAL_FEATURE
 void APIENTRY_GL4ES gl4es_glVertexAttribIPointer(GLuint index, GLint size, GLenum type, GLsizei stride, const GLvoid * pointer) {
     DBG(printf("glVertexAttribIPointer(%d, %d, %s, %d, %p), vertex buffer = %p\n", index, size, PrintEnum(type), stride, pointer, (glstate->vao->vertex)?glstate->vao->vertex->data:0);)
     FLUSH_BEGINEND;
@@ -75,14 +78,7 @@ void APIENTRY_GL4ES gl4es_glVertexAttribIPointer(GLuint index, GLint size, GLenu
         v->real_pointer = 0;
     }
 }
-void APIENTRY_GL4ES gl4es_glVertexAttribIPointer(GLuint index, GLint size, GLenum type, GLsizei stride, const GLvoid * pointer) {
-	DBG(printf("glVertexAttribIPointer(%d, %d, %s, %d, %p)\n", index, size, PrintEnum(type), stride, pointer));
-	if(!(type == GL_BYTE || type == GL_UNSIGNED_BYTE || type == GL_SHORT || type == GL_UNSIGNED_SHORT || type == GL_INT || type == GL_UNSIGNED_INT)) {
-		errorShim(GL_INVALID_ENUM);
-		return;
-	}
-	gl4es_glVertexAttribPointer(index,size,type,GL_FALSE,stride,pointer);
-}
+#endif // USE_EXPERIMENTAL_FEATURE
 void APIENTRY_GL4ES gl4es_glEnableVertexAttribArray(GLuint index) {
     DBG(printf("glEnableVertexAttrib(%d)\n", index);)
     FLUSH_BEGINEND;
@@ -201,8 +197,9 @@ void APIENTRY_GL4ES gl4es_glVertexAttribDivisor(GLuint index, GLuint divisor) {
 }
 
 AliasExport(void,glVertexAttribPointer,,(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid * pointer));
+#ifdef USE_EXPERIMENTAL_FEATURE
 AliasExport(void,glVertexAttribIPointer,,(GLuint index, GLint size, GLenum type, GLsizei stride, const GLvoid * pointer));
-AliasExport(void,glVertexAttribIPointer,EXT,(GLuint index, GLint size, GLenum type, GLsizei stride, const GLvoid * pointer));
+#endif
 AliasExport(void,glEnableVertexAttribArray,,(GLuint index));
 AliasExport(void,glDisableVertexAttribArray,,(GLuint index));
 AliasExport(void,glVertexAttrib4f,,(GLuint index, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3));
