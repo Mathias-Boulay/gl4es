@@ -26,7 +26,21 @@ char* InplaceReplace(char* pBuffer, int* size, const char* S, const char* D)
             p+=lD;
         } else p+=lS;
     }
-    
+
+    return pBuffer;
+}
+
+char * InplaceReplaceByIndex(char* pBuffer, int* size, const int startIndex, const int endIndex, const char* replacement)
+{
+    int length_difference = strlen(replacement) - (endIndex - startIndex); // Can be negative if repl is smaller
+    pBuffer = ResizeIfNeeded(pBuffer, size, length_difference);
+
+    // Move the end of the string
+    memmove(pBuffer + startIndex + strlen(replacement) , pBuffer + endIndex + 1, strlen(pBuffer) - endIndex + 1);
+
+    // Insert the replacement
+    memcpy(pBuffer + startIndex, replacement, strlen(replacement));
+
     return pBuffer;
 }
 
@@ -229,6 +243,6 @@ char* InplaceReplaceSimple(char* pBuffer, int* size, const char* S, const char* 
         // next
         p+=lD;
     }
-    
+
     return pBuffer;
 }
