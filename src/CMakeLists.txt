@@ -70,6 +70,7 @@ SET(GL_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/gl/wrap/gles.c
 	${CMAKE_CURRENT_SOURCE_DIR}/gl/wrap/glstub.c
 	${CMAKE_CURRENT_SOURCE_DIR}/gl/math/matheval.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/gl/vgpu/shaderconv.c
 )
 
 SET(GL_H
@@ -135,6 +136,7 @@ SET(GL_H
     ${CMAKE_CURRENT_SOURCE_DIR}/gl/wrap/gl4es.h
     ${CMAKE_CURRENT_SOURCE_DIR}/gl/wrap/gles.h
     ${CMAKE_CURRENT_SOURCE_DIR}/gl/wrap/stub.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/gl/vgpu/shaderconv.h
 )
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux" AND NOT NO_LOADER)
@@ -252,7 +254,7 @@ endif()
 SET(EGL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/egl/egl.c
     ${CMAKE_CURRENT_SOURCE_DIR}/egl/lookup.c
-)
+        gl/vgpu/shaderconv.c gl/vgpu/shaderconv.h)
 
 SET(EGL_H
     ${CMAKE_CURRENT_SOURCE_DIR}/egl/egl.h
