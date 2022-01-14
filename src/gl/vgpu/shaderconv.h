@@ -5,7 +5,11 @@
 #ifndef UNTITLED_SHADERCONV_H
 #define UNTITLED_SHADERCONV_H
 
-void GLSLHeader(char* source);
-void RemoveConstInsideBlocks(char* source);
+char * ConvertShader(char* source);
+
+char * GLSLHeader(char* source);
+char * RemoveConstInsideBlocks(char* source);
+
+char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand);
 
 #endif //UNTITLED_SHADERCONV_H
