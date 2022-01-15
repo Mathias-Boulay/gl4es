@@ -38,10 +38,109 @@ char * ConvertShader(char* source){
         source = InplaceReplace(source, &sourceLength, "varying\0", "in\0");
     }
 
-    // TODO ALL THE OTHER STUFF
+    // TODO Convert everything to float I guess :think:
+
+    // Hey we don't want to deal with implicit type stuff
+    source = CoerceIntToFloat(source);
+
+    // Avoid any weird type trying to be an index for an array
+    source = ForceIntegerArrayAccess(source);
 
     return source;
 }
+
+
+/**
+ * Change all (u)ints to floats.
+ * This is a hack to avoid dealing with implicit conversions on common operators
+ * @param source The shader as a string
+ * @return The shader as a string, maybe in a new memory location
+ * @see ForceIntegerArrayAccess
+ */
+char * CoerceIntToFloat(char * source){
+    // Let's go the "freestyle way"
+    int sourceLength = strlen(source);
+
+    // Scalar values
+    source = InplaceReplaceSimple(source, &sourceLength, "uint ", "float ");
+    source = InplaceReplaceSimple(source, &sourceLength, "int ", "float ");
+
+    // Vectors
+    // TODO Avoid breaking variable name !
+    source = InplaceReplaceSimple(source, &sourceLength,"ivec", "vec");
+
+    // Step 3 is slower.
+    // We need to parse hardcoded values like 1 and turn it into 1.(0)
+    for(int i=0; i<sourceLength; ++i){
+
+        // We avoid all preprocessor directives for now
+        if(source[i] == '#'){
+            // Look for the next line
+            while (source[i] != '\n'){
+                i++;
+            }
+        }
+
+        if(!isDigit(source[i])){ continue; }
+        // So there is a few situations that we have to distinguish:
+        // functionName1 (      ----- meaning there is SOMETHING on its left side that is related to the number
+        // function(1,          ----- there is something, and it ISN'T related to the number
+        // float test=3;        ----- something on both sides, not related to the number.
+        // float test=X.2       ----- There is a dot, so it is part of a float already
+
+        if(source[i-1] == '.' || source[i+1] == '.') continue;// Number part of a float
+        if(isFromAlphabet(source[i-1])) continue; // Char attached to something related
+        if(isDigit(source[i-1]) || isDigit(source[i+1])) continue;
+        // Now we know there is nothing related to the digit, turn it into a float
+        source = InplaceReplaceByIndex(source, &sourceLength, i+1, i+1, ".0");
+    }
+
+    // TODO Hacks for special built in values and typecasts ?
+
+    return source;
+}
+
+/** Force all array accesses to use integers by adding an explicit typecast
+ * @param source The shader as a string
+ * @return The shader as a string, maybe at a new memory location */
+char * ForceIntegerArrayAccess(char* source){
+    char * markerStart = "$";
+    char * markerEnd = "`";
+    int sourceLength = strlen(source);
+
+    // Step 1, we need to mark all [] that are empty and must not be changed
+    int leftCharIndex = 0;
+    for(int i=0; i< sourceLength; ++i){
+        if(source[i] == '['){
+            leftCharIndex = i;
+            continue;
+        }
+        // If a start has been found
+        if(leftCharIndex){
+            if(source[i] == ' ' || source[i] == '\n'){
+                continue;
+            }
+            // We find the other side and mark both ends
+            if(source[i] == ']'){
+                source[leftCharIndex] = *markerStart;
+                source[i] = *markerEnd;
+            }
+        }
+        //Something else is there, abort the marking phase for this one
+        leftCharIndex = 0;
+    }
+
+    // Step 2, replace the array accesses with a forced typecast version
+    source = InplaceReplaceSimple(source, &sourceLength, "]", ")]");
+    source = InplaceReplaceSimple(source, &sourceLength, "[", "[int(");
+
+    // Step 3, restore all marked empty []
+    source = InplaceReplace(source, &sourceLength, markerStart, "[");
+    source = InplaceReplace(source, &sourceLength, markerEnd, "]");
+
+    return source;
+}
+
 
 /** Small helper to help evaluate whether to continue or not I guess */
 int GetOperatorValue(char operator){
