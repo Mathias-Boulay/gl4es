@@ -9,6 +9,8 @@ char * ConvertShader(char* source);
 
 char * GLSLHeader(char* source);
 char * RemoveConstInsideBlocks(char* source);
+char * ForceIntegerArrayAccess(char* source);
+char * CoerceIntToFloat(char * source);
 
 char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand);
 
