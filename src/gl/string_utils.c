@@ -172,6 +172,15 @@ int isBlank(char c)  {
             return 0;
     }
 }
+
+int isDigit(char value){
+    return (value >= '0' && value <= '9');
+}
+
+int isFromAlphabet(char value){
+    return ((value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z'));
+}
+
 char* StrNext(char *pBuffer, const char* S) {
     if(!pBuffer) return NULL;
     char *p = strstr(pBuffer, S);
