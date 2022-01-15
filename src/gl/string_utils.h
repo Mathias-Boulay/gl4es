@@ -4,7 +4,7 @@
 extern const char* AllSeparators;
 
 int isDigit(char value);
-int isFromAlphabet(char value);
+int isValidFunctionName(char value);
 
 const char* FindString(const char* pBuffer, const char* S);
 char* FindStringNC(char* pBuffer, const char* S);
