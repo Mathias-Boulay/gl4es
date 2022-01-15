@@ -17,7 +17,7 @@ int NO_OPERATOR_VALUE = 9999;
 
 /** Convert the shader through multiple steps
  * @param source The start of the shader as a string*/
-char * ConvertShader(char* source){
+char * ConvertShaderVgpu(char* source){
     int sourceLength = strlen(source);
 
     // Either vertex shader (vsh) or fragment shader (fsh)
@@ -40,6 +40,9 @@ char * ConvertShader(char* source){
 
     // TODO Convert everything to float I guess :think:
 
+    // % operator isn't supported, so change it
+    source = ReplaceModOperator(source);
+
     // Hey we don't want to deal with implicit type stuff
     source = CoerceIntToFloat(source);
 
@@ -49,6 +52,41 @@ char * ConvertShader(char* source){
     return source;
 }
 
+/**
+ * Replace the % operator with a mathematical equivalent (x - y * floor(x/y))
+ * @param source The shader as a string
+ * @return The shader as a string, maybe in a different memory location
+ */
+char * ReplaceModOperator(char * source){
+    char * modelString = "(x - y * (floor( x / y )))";
+    int sourceLength = strlen(source);
+    int startIndex, endIndex = 0;
+    int * startPtr = &startIndex, *endPtr = &endIndex;
+
+    for(int i=0;i<sourceLength; ++i){
+        if(source[i] != '%') continue;
+        // A mod operator is found !
+        char * leftOperand = GetOperandFromOperator(source, i, 0, startPtr);
+        char * rightOperand = GetOperandFromOperator(source, i, 1, endPtr);
+
+        // Generate a model string to be inserted
+        char * replacementString = malloc(strlen(modelString) + 1);
+        strcpy(replacementString, modelString);
+        int replacementSize = strlen(replacementString);
+        replacementString = InplaceReplace(replacementString, &replacementSize, "x", leftOperand);
+        replacementString = InplaceReplace(replacementString, &replacementSize, "y", rightOperand);
+
+        // Insert the new string
+        source = InplaceReplaceByIndex(source, &sourceLength, startIndex, endIndex, replacementString);
+
+        // Free all the temporary strings
+        free(leftOperand);
+        free(rightOperand);
+        free(replacementString);
+    }
+
+    return source;
+}
 
 /**
  * Change all (u)ints to floats.
@@ -87,12 +125,28 @@ char * CoerceIntToFloat(char * source){
         // function(1,          ----- there is something, and it ISN'T related to the number
         // float test=3;        ----- something on both sides, not related to the number.
         // float test=X.2       ----- There is a dot, so it is part of a float already
+        // float test = 0.00000 ----- I have to backtrack to find the dot
 
         if(source[i-1] == '.' || source[i+1] == '.') continue;// Number part of a float
-        if(isFromAlphabet(source[i-1])) continue; // Char attached to something related
-        if(isDigit(source[i-1]) || isDigit(source[i+1])) continue;
+        if(isValidFunctionName(source[i - 1])) continue; // Char attached to something related
+        if(/*isDigit(source[i-1]) || */ isDigit(source[i+1])) continue; // End of number not reached
+        if(isDigit(source[i-1])){
+            // Backtrack to check if the number is floating point
+            int shouldBeCoerced = 0;
+            for(int j=1; 1; ++j){
+                if(isDigit(source[i-j])) continue;
+                if(isValidFunctionName(source[i-j])) continue; // Function or variable name, don't coerce
+                if(source[i-j] == '.') break; // No coercion, float already
+                // Nothing found, should be coerced then
+                shouldBeCoerced = 1;
+                break;
+            }
+
+            if(!shouldBeCoerced) continue;
+        }
+
         // Now we know there is nothing related to the digit, turn it into a float
-        source = InplaceReplaceByIndex(source, &sourceLength, i+1, i+1, ".0");
+        source = InplaceReplaceByIndex(source, &sourceLength, i+1, i, ".0");
     }
 
     // TODO Hacks for special built in values and typecasts ?
@@ -155,9 +209,10 @@ int GetOperatorValue(char operator){
  * @param source The shader as a string
  * @param operatorIndex The index the operator is found
  * @param rightOperand Whether we get the right or left operator
+ * @param limit The left or right index of the operand
  * @return newly allocated string with the operand
  */
-char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand){
+char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand, int * limit){
     int parserState = 0;
     int parserDirection = rightOperand ? 1 : -1;
     int operandStartIndex = 0, operandEndIndex = 0;
@@ -267,18 +322,45 @@ char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand){
     char * operand = malloc(operandEndIndex - operandStartIndex + 1);
     memcpy(operand, source+operandStartIndex, operandEndIndex - operandStartIndex + 1);
 
+    // Send back the limitIndex
+    *limit = rightOperand ? operandEndIndex : operandStartIndex;
+
     return operand;
 }
 
-/** Replace the old version by new version, could be more advanced
+/** Replace the version by new version, period.
  * @param source The pointer to the start of the shader */
 char * GLSLHeader(char* source){
     /*
     if(!hardext.glsl320es && !hardext.glsl310es && !hardext.glsl300es){
         return source;
     }*/
-    int lS = strlen(source) + 1;
-    source = InplaceReplace(source, &lS , old_version, new_version);
+    int sourceLength = strlen(source);
+    int startIndex, endIndex = 0;
+    int index = 0;
+    int parserState = 0;
+
+    // Step 1 get to the version
+    while (parserState == 0){
+        if(source[index] == '#' && source[index + 1] == 'v'){
+            parserState = 1;
+            startIndex = index;
+        }
+        index ++;
+    }
+
+    //Step 2 get to the end of the line
+    while(parserState == 1){
+        if(source[index] == '\n'){
+            parserState = 2;
+            endIndex = index;
+        }
+        index++;
+    }
+
+    // Step 3, replace.
+    InplaceReplaceByIndex(source, &sourceLength, startIndex, endIndex, new_version);
+
     return source;
 }
 
