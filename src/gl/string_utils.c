@@ -177,8 +177,8 @@ int isDigit(char value){
     return (value >= '0' && value <= '9');
 }
 
-int isFromAlphabet(char value){
-    return ((value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z'));
+int isValidFunctionName(char value){
+    return ((value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') || (value == '_'));
 }
 
 char* StrNext(char *pBuffer, const char* S) {
