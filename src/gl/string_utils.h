@@ -3,6 +3,9 @@
 
 extern const char* AllSeparators;
 
+int isDigit(char value);
+int isFromAlphabet(char value);
+
 const char* FindString(const char* pBuffer, const char* S);
 char* FindStringNC(char* pBuffer, const char* S);
 int CountString(const char* pBuffer, const char* S);
@@ -25,6 +28,5 @@ const char* GetNextStr(char* pBuffer); // get a (static) copy of next str (until
 // those function don't try to be smart with separators...
 int CountStringSimple(char* pBuffer, const char* S);
 char* InplaceReplaceSimple(char* pBuffer, int* size, const char* S, const char* D);
-
 
 #endif // _GL4ES_STRING_UTILS_H_
