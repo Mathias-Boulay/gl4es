@@ -45,6 +45,7 @@ char * ConvertShader(char* source){
 
 /** Small helper to help evaluate whether to continue or not I guess */
 int GetOperatorValue(char operator){
+    if(operator == ',' || operator == ';') return 5;
     if(operator == '=') return 4;
     if(operator == '+' || operator == '-') return 3;
     if(operator == '*' || operator == '/' || operator == '%') return 2;
