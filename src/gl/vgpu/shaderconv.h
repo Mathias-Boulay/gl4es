@@ -12,6 +12,8 @@ char * RemoveConstInsideBlocks(char* source);
 char * ForceIntegerArrayAccess(char* source);
 char * CoerceIntToFloat(char * source);
 char * ReplaceModOperator(char * source);
+char * WrapIvecFunctions(char * source);
+char * FindPositionAfterVersion(char * source);
 
 char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand, int * limit);
 

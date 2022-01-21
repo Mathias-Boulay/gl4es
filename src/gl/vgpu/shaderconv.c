@@ -40,9 +40,6 @@ char * ConvertShaderVgpu(char* source){
 
     // TODO Convert everything to float I guess :think:
 
-    // % operator isn't supported, so change it
-    source = ReplaceModOperator(source);
-
     // Hey we don't want to deal with implicit type stuff
     source = CoerceIntToFloat(source);
 
@@ -52,13 +49,53 @@ char * ConvertShaderVgpu(char* source){
     return source;
 }
 
+char * WrapIvecFunctions(char * source){
+
+}
+
+/**
+ * Replace a function and its calls by a wrapper version, only if needed
+ * @param source The shader code as a string
+ * @param functionName The function to be replaced
+ * @param wrapperFunctionName The replacing function name
+ * @param function The wrapper function itself
+ * @return The shader as a string, maybe in a different memory location
+ */
+char * WrapFunction(char * source, char * functionName, char * wrapperFunctionName, char * wrapperFunction){
+    // Okay, we have a few cases to distinguish to make sure we don't replace something unintended:
+    // Let's say we want to replace a "FunctionName"
+    // float FunctionNameResult ...             ----- something between FunctionName and the ( , skip it.
+    // BiggerFunctionName(...                   ----- FunctionName part of another function ! Skip it.
+    // Function(FunctionName( ...               ----- There is a call to function name
+
+    int sourceLength = strlen(source);
+    char * findStringPtr = NULL;
+    findStringPtr = FindString(source, functionName);
+    if(findStringPtr){
+        // Check the right end
+        for(int i= strlen(functionName); 1; ++i){
+            if(findStringPtr[i] == ' ' || findStringPtr[i] == '\n') continue;
+            if (findStringPtr[i] == '(') break; // Allowed going further, since it looks like a function call
+            return source;
+        }
+
+        // Left end
+        findStringPtr --;
+        if(isValidFunctionName(findStringPtr[0])) return source; // Var or function name
+        // At this point, the call is real, so just replace them
+        InplaceReplaceSimple(source, &sourceLength, functionName, wrapperFunctionName);
+        InplaceInsert(source, wrapperFunction, source, &sourceLength);
+
+    }
+}
+
 /**
  * Replace the % operator with a mathematical equivalent (x - y * floor(x/y))
  * @param source The shader as a string
  * @return The shader as a string, maybe in a different memory location
  */
 char * ReplaceModOperator(char * source){
-    char * modelString = "(x - y * (floor( x / y )))";
+    char * modelString = "((x) - (y) * (floor( (x) / (y) )))";
     int sourceLength = strlen(source);
     int startIndex, endIndex = 0;
     int * startPtr = &startIndex, *endPtr = &endIndex;
@@ -196,16 +233,18 @@ char * ForceIntegerArrayAccess(char* source){
 }
 
 
-/** Small helper to help evaluate whether to continue or not I guess */
+/** Small helper to help evaluate whether to continue or not I guess
+ * Values over 9900 are not for real operators, more like stop indicators*/
 int GetOperatorValue(char operator){
-    if(operator == ',' || operator == ';') return 5;
-    if(operator == '=') return 4;
+    if(operator == ',' || operator == ';') return 9998;
+    if(operator == '=') return 9997;
     if(operator == '+' || operator == '-') return 3;
     if(operator == '*' || operator == '/' || operator == '%') return 2;
     return NO_OPERATOR_VALUE; // Meaning no value;
 }
 
 /** Get the left or right operand, given the last index of the operator
+ * It bases its ability to get operands by evaluating the priority of operators.
  * @param source The shader as a string
  * @param operatorIndex The index the operator is found
  * @param rightOperand Whether we get the right or left operator
@@ -218,6 +257,7 @@ char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand, 
     int operandStartIndex = 0, operandEndIndex = 0;
     int parenthesesLeft = 0, hasFoundParentheses = 0;
     int operatorValue = GetOperatorValue(source[operatorIndex]);
+    int lastOperator = 0; // Used to determine priority for unary operators
 
     char parenthesesStart = rightOperand ? '(' : ')';
     char parenthesesEnd = rightOperand ? ')' : '(';
@@ -233,6 +273,11 @@ char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand, 
                 operandStartIndex = stringIndex;
             }else{
                 operandEndIndex = stringIndex;
+            }
+
+            // Special case for unary operator when parsing to the right
+            if(GetOperatorValue(source[stringIndex]) == 3 ){ // 3 is +- operators
+                stringIndex += parserDirection;
             }
         }
     }
@@ -275,16 +320,24 @@ char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand, 
         // So by now the following assumptions are made
         // 1 - We aren't between parentheses
         // 2 - No implicit multiplications are present
+        // 3 - No fuckery with operators like "test = +-+-+-+-+-+-+-+-3;" although I attempt to support them
 
         // Higher value operators have less priority
         int currentValue = GetOperatorValue(source[stringIndex]);
-        if(currentValue >= operatorValue){
+
+
+        // The condition is different due to the evaluation order which is left to right, aside from the unary operators
+        if((rightOperand ? currentValue >= operatorValue: currentValue > operatorValue)){
             if(currentValue == NO_OPERATOR_VALUE){
                 if(source[stringIndex] == ' '){
                     stringIndex += parserDirection;
                     continue;
                 }
-                // Else, maybe it is the start of a function ?
+
+                // Found an operand, so reset the operator eval for unary
+                if(rightOperand) lastOperator = NO_OPERATOR_VALUE;
+
+                // maybe it is the start of a function ?
                 if(hasFoundParentheses){
                     parserState = 2;
                     continue;
@@ -293,12 +346,47 @@ char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand, 
                 stringIndex += parserDirection;
                 continue;
             }
+
+            // Special case when parsing unary operator to the right
+            if(rightOperand && operatorValue == 3 && lastOperator < currentValue){
+                stringIndex += parserDirection;
+                continue;
+            }
+
             // Stop, we found an operator of same worth.
             parserState = 3;
             if(rightOperand){
                 operandEndIndex = stringIndex - 1;
             }else{
                 operandStartIndex = stringIndex + 1;
+            }
+        }
+
+        // Special case for unary operators from the right
+        if(rightOperand && operatorValue == 3) { // 3 is + - operators
+            lastOperator = currentValue;
+        } // Special case for unary operators from the left
+        if(!rightOperand && operatorValue < 3 && currentValue == 3){
+            lastOperator = NO_OPERATOR_VALUE;
+            for(int j=1; 1; ++j){
+                int subCurrentValue = GetOperatorValue(source[stringIndex - j]);
+                if(subCurrentValue != NO_OPERATOR_VALUE){
+                    lastOperator = subCurrentValue;
+                    continue;
+                }
+
+                // No operator value, can be almost anything
+                if(source[stringIndex - j] == ' ') continue;
+                // Else we found something. Did we found a high priority operator ?
+                if(lastOperator <= operatorValue){ // If so, we allow continuing and going out of the loop
+                    stringIndex -= j;
+                    parserState = 1;
+                    break;
+                }
+                // No other operator found
+                operandStartIndex = stringIndex;
+                parserState = 3;
+                break;
             }
         }
         stringIndex += parserDirection;
@@ -408,4 +496,16 @@ char * RemoveConstInsideBlocks(char* source){
     return source;
 }
 
-
+/**
+ * @param source The shader as a string
+ * @return The position after the #version line, start of the shader if not found
+ */
+char * FindPositionAfterVersion(char * source){
+    char * position = FindString(source, "#version");
+    if (position == NULL) return source;
+    for(int i=7; 1; ++i){
+        if(position[i] == '\n'){
+            return position + i;
+        }
+    }
+}
