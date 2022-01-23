@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "string_utils.h"
+#include "logs.h"
 
 const char* AllSeparators = " \t\n\r.,;()[]{}-<>+*/%&\\\"'^$=!:?";
 
@@ -32,14 +33,19 @@ char* InplaceReplace(char* pBuffer, int* size, const char* S, const char* D)
 
 char * InplaceReplaceByIndex(char* pBuffer, int* size, const int startIndex, const int endIndex, const char* replacement)
 {
+    //SHUT_LOGD("BY INDEX: %s", replacement);
+    //SHUT_LOGD("BY INDEX: %i", strlen(replacement));
+
     int length_difference = strlen(replacement) - (endIndex - startIndex); // Can be negative if repl is smaller
     pBuffer = ResizeIfNeeded(pBuffer, size, length_difference);
-
+    //SHUT_LOGD("BEFORE MOVING: \n%s", pBuffer);
     // Move the end of the string
-    memmove(pBuffer + startIndex + strlen(replacement) , pBuffer + endIndex + 1, strlen(pBuffer) - endIndex + 1);
+    memmove(pBuffer + startIndex + strlen(replacement) , pBuffer + endIndex + 1, *size - endIndex + 1);
+    //SHUT_LOGD("AFTER MOVING 1: \n%s", pBuffer);
 
     // Insert the replacement
     memcpy(pBuffer + startIndex, replacement, strlen(replacement));
+    //SHUT_LOGD("AFTER MOVING 2: \n%s", pBuffer);
 
     return pBuffer;
 }
@@ -140,10 +146,12 @@ char* FindStringNC(char* pBuffer, const char* S)
 }
 
 char* ResizeIfNeeded(char* pBuffer, int *size, int addsize) {
+    //SHUT_LOGD("ADDSIZE: \n%i", addsize);
     char* p = pBuffer;
     int newsize = strlen(pBuffer)+addsize+1;
+    //SHUT_LOGD("newsize: \n%i", newsize);
     if (newsize>*size) {
-        newsize += 100;
+        //newsize += 100;
         p = (char*)realloc(pBuffer, newsize);
         *size=newsize;
     }

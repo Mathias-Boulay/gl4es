@@ -6,6 +6,7 @@
 #include <malloc.h>
 #include "shaderconv.h"
 #include "../string_utils.h"
+#include "../logs.h"
 
 // Version expected to be replaced
 char * old_version = "#version 120";
@@ -26,19 +27,22 @@ char * ConvertShaderVgpu(char* source){
         vsh = 1;
 
     // Change version header
-    source = GLSLHeader(source);
+    //source = GLSLHeader(source);
     // Remove 'const' storage qualifier
     source = RemoveConstInsideBlocks(source);
 
     // Switch a few keywords
+    /*
     if(vsh){
         source = InplaceReplace(source, &sourceLength, "attribute\0", "in\0");
         source = InplaceReplace(source, &sourceLength, "varying\0", "out\0");
     }else{
         source = InplaceReplace(source, &sourceLength, "varying\0", "in\0");
-    }
+    }*/
 
     // TODO Convert everything to float I guess :think:
+
+    source = ReplaceModOperator(source);
 
     // Hey we don't want to deal with implicit type stuff
     source = CoerceIntToFloat(source);
@@ -46,11 +50,17 @@ char * ConvertShaderVgpu(char* source){
     // Avoid any weird type trying to be an index for an array
     source = ForceIntegerArrayAccess(source);
 
+    // Since everything is a float, we need to overload WAY TOO MANY functions
+    source = WrapIvecFunctions(source);
+
     return source;
 }
 
 char * WrapIvecFunctions(char * source){
+    source = WrapFunction(source, "texelFetch", "vgpu_texelFetch", "\nvec4 vgpu_texelFetch(sampler2D sampler, vec2 P, float lod){return texelFetch(sampler,ivec2(int(P.x),int(P.y)),int(lod));}");
 
+
+    return source;
 }
 
 /**
@@ -83,10 +93,12 @@ char * WrapFunction(char * source, char * functionName, char * wrapperFunctionNa
         findStringPtr --;
         if(isValidFunctionName(findStringPtr[0])) return source; // Var or function name
         // At this point, the call is real, so just replace them
-        InplaceReplaceSimple(source, &sourceLength, functionName, wrapperFunctionName);
-        InplaceInsert(source, wrapperFunction, source, &sourceLength);
-
+        int insertPoint = FindPositionAfterDirectives(source);
+        source = InplaceReplaceSimple(source, &sourceLength, functionName, wrapperFunctionName);
+        source = InplaceReplaceByIndex(source, &sourceLength, insertPoint, insertPoint-1, wrapperFunction);
+        SHUT_LOGD("WHAT THE FUCK IS BROKEN TIMES TWO : \n%s", wrapperFunction);
     }
+    return source;
 }
 
 /**
@@ -172,7 +184,7 @@ char * CoerceIntToFloat(char * source){
             int shouldBeCoerced = 0;
             for(int j=1; 1; ++j){
                 if(isDigit(source[i-j])) continue;
-                if(isValidFunctionName(source[i-j])) continue; // Function or variable name, don't coerce
+                if(isValidFunctionName(source[i-j])) break; // Function or variable name, don't coerce
                 if(source[i-j] == '.') break; // No coercion, float already
                 // Nothing found, should be coerced then
                 shouldBeCoerced = 1;
@@ -187,6 +199,8 @@ char * CoerceIntToFloat(char * source){
     }
 
     // TODO Hacks for special built in values and typecasts ?
+    source = InplaceReplaceSimple(source, &sourceLength, "gl_VertexID", "float(gl_VertexID)");
+    source = InplaceReplaceSimple(source, &sourceLength, "gl_InstanceID", "float(gl_InstanceID)");
 
     return source;
 }
@@ -226,8 +240,8 @@ char * ForceIntegerArrayAccess(char* source){
     source = InplaceReplaceSimple(source, &sourceLength, "[", "[int(");
 
     // Step 3, restore all marked empty []
-    source = InplaceReplace(source, &sourceLength, markerStart, "[");
-    source = InplaceReplace(source, &sourceLength, markerEnd, "]");
+    source = InplaceReplaceSimple(source, &sourceLength, markerStart, "[");
+    source = InplaceReplaceSimple(source, &sourceLength, markerEnd, "]");
 
     return source;
 }
@@ -407,8 +421,10 @@ char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand, 
     }
 
     // At this point, we know both the start and end point of our operand, let's copy it
-    char * operand = malloc(operandEndIndex - operandStartIndex + 1);
+    char * operand = malloc(operandEndIndex - operandStartIndex + 2);
     memcpy(operand, source+operandStartIndex, operandEndIndex - operandStartIndex + 1);
+    // Make sure the string is null terminated
+    operand[operandEndIndex - operandStartIndex + 1] = '\0';
 
     // Send back the limitIndex
     *limit = rightOperand ? operandEndIndex : operandStartIndex;
@@ -447,7 +463,7 @@ char * GLSLHeader(char* source){
     }
 
     // Step 3, replace.
-    InplaceReplaceByIndex(source, &sourceLength, startIndex, endIndex, new_version);
+    source = InplaceReplaceByIndex(source, &sourceLength, startIndex, endIndex, new_version);
 
     return source;
 }
@@ -496,16 +512,17 @@ char * RemoveConstInsideBlocks(char* source){
     return source;
 }
 
-/**
+/** Find the first point which is right after most shader directives
  * @param source The shader as a string
- * @return The position after the #version line, start of the shader if not found
+ * @return The index position after the #version line, start of the shader if not found
  */
-char * FindPositionAfterVersion(char * source){
+int FindPositionAfterDirectives(char * source){
     char * position = FindString(source, "#version");
-    if (position == NULL) return source;
+    if (position == NULL) return 0;
     for(int i=7; 1; ++i){
         if(position[i] == '\n'){
-            return position + i;
+            if(position[i+1] == '#') continue; // meaning another directive is present right after
+            return i;
         }
     }
 }
