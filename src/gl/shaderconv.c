@@ -286,7 +286,8 @@ static const char* GLESHeader[] = {
   "#version 100\n%sprecision %s float;\nprecision %s int;\n",
   "#version 120\n%sprecision %s float;\nprecision %s int;\n",
   "#version 310 es\n%sprecision %s float;\nprecision %s int;\n",
-  "#version 300 es\n%sprecision %s float;\nprecision %s int;\n"
+  "#version 300 es\n%sprecision %s float;\nprecision %s int;\n",
+  "#version 320 es\n%sprecision %s float;\nprecision %s int;\n"
 };
 
 static const char* gl4es_transpose =
@@ -502,6 +503,7 @@ static char* ConvertShader_gl4es(const char* pEntry, int isVertex, shaderconv_ne
      version120 = 1;
   if(version120) {
     if(hardext.glsl120) versionHeader = 1;
+    else if(hardext.glsl320es) versionHeader = 4;
     else if(hardext.glsl310es) versionHeader = 2;
     else if(hardext.glsl300es) { versionHeader = 3; /* location on uniform not supported ! */ }
     /* else no location or in / out are supported */
