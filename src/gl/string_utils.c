@@ -40,11 +40,12 @@ char * InplaceReplaceByIndex(char* pBuffer, int* size, const int startIndex, con
     pBuffer = ResizeIfNeeded(pBuffer, size, length_difference);
     //SHUT_LOGD("BEFORE MOVING: \n%s", pBuffer);
     // Move the end of the string
-    memmove(pBuffer + startIndex + strlen(replacement) , pBuffer + endIndex + 1, *size - endIndex + 1);
+    memmove(pBuffer + startIndex + strlen(replacement) , pBuffer + endIndex + 1, strlen(pBuffer) - endIndex + 1);
     //SHUT_LOGD("AFTER MOVING 1: \n%s", pBuffer);
 
     // Insert the replacement
     memcpy(pBuffer + startIndex, replacement, strlen(replacement));
+    //strncpy(pBuffer + startIndex, replacement, strlen(replacement));
     //SHUT_LOGD("AFTER MOVING 2: \n%s", pBuffer);
 
     return pBuffer;
@@ -151,7 +152,7 @@ char* ResizeIfNeeded(char* pBuffer, int *size, int addsize) {
     int newsize = strlen(pBuffer)+addsize+1;
     //SHUT_LOGD("newsize: \n%i", newsize);
     if (newsize>*size) {
-        //newsize += 100;
+        newsize += 100;
         p = (char*)realloc(pBuffer, newsize);
         *size=newsize;
     }
@@ -247,10 +248,15 @@ int CountStringSimple(char* pBuffer, const char* S)
 
 char* InplaceReplaceSimple(char* pBuffer, int* size, const char* S, const char* D)
 {
+    return InplaceReplaceSimpleCount(pBuffer, size, S, D, UINT32_MAX);
+}
+
+char * InplaceReplaceSimpleCount(char* pBuffer, int* size, const char* S, const char* D, unsigned count){
+    unsigned replaceCount = 0;
     int lS = strlen(S), lD = strlen(D);
     pBuffer = ResizeIfNeeded(pBuffer, size, (lD-lS)*CountStringSimple(pBuffer, S));
     char* p = pBuffer;
-    while((p = strstr(p, S)))
+    while((p = strstr(p, S)) && replaceCount < count)
     {
         // found an occurence of S
         // move out rest of string
@@ -259,6 +265,7 @@ char* InplaceReplaceSimple(char* pBuffer, int* size, const char* S, const char* 
         memcpy(p, D, strlen(D));
         // next
         p+=lD;
+        ++replaceCount;
     }
 
     return pBuffer;

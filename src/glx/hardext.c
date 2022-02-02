@@ -261,6 +261,7 @@ void GetHardwareExtensions(int notest)
     if (hardext.esversion>2) {
         SHUT_LOGD("Extension GL_EXT_draw_buffers is in core ES3, and so used\n");
         hardext.drawbuffers = 1;
+        S("GL_EXT_shader_non_constant_global_initializers ", nonconstglobalinit, 1);
     } else {
         S("GL_EXT_draw_buffers ", drawbuffers, 1);
     }
