@@ -7,29 +7,42 @@
 #include "shaderconv.h"
 #include "../string_utils.h"
 #include "../logs.h"
+#include "../const.h"
 
 // Version expected to be replaced
 char * old_version = "#version 120";
 // The version we will declare as
 //char * new_version = "#version 450 compatibility";
-char * new_version = "#version 320 es";
+char * new_version = "#version 320 es\n";
 
 int NO_OPERATOR_VALUE = 9999;
 
 /** Convert the shader through multiple steps
  * @param source The start of the shader as a string*/
-char * ConvertShaderVgpu(char* source){
+char * ConvertShaderVgpu(struct shader_s * shader_source){
+
+    SHUT_LOGD("VGPU BEGIN: \n%s", shader_source->converted);
+    // Get the shader source
+    char * source = shader_source->converted;
     int sourceLength = strlen(source);
 
-    // Either vertex shader (vsh) or fragment shader (fsh)
-    int vsh = 0;
-    if(strstr(source, "gl_Position"))
-        vsh = 1;
-
+    //SHUT_LOGD("FORCING THE VERSION HEADER");
     // Change version header
     //source = GLSLHeader(source);
     // Remove 'const' storage qualifier
-    source = RemoveConstInsideBlocks(source);
+    //SHUT_LOGD("REMOVING CONST qualifiers");
+    //source = RemoveConstInsideBlocks(source, &sourceLength);
+    //source = ReplaceVariableName(source, &sourceLength, "const", " ");
+
+    // gles 1.1.4 doesn't deal with attribute conversion
+    /*
+    if(shader_source->type == GL_VERTEX_SHADER){
+        source = ReplaceVariableName(source, &sourceLength, "attribute", "in");
+        source = ReplaceVariableName(source, &sourceLength, "varying", "out");
+    }else{
+        source = ReplaceVariableName(source, &sourceLength, "varying", "in");
+    }*/
+
 
     // Switch a few keywords
     /*
@@ -41,23 +54,59 @@ char * ConvertShaderVgpu(char* source){
     }*/
 
     // TODO Convert everything to float I guess :think:
+    SHUT_LOGD("FUCKING UP PRECISION");
+    source = ReplaceVariableName(source, &sourceLength, "highp", "lowp");
+    source = ReplaceVariableName(source, &sourceLength, "mediump", "lowp");
 
-    source = ReplaceModOperator(source);
+    // Avoid keyword clash with gl4es #define blocks
+    SHUT_LOGD("REPLACING KEYWORDS");
+    //source = ReplaceVariableName(source, "texture", "vgpu_Texture");
+    source = ReplaceVariableName(source, &sourceLength, "sample", "vgpu_Sample");
 
+    SHUT_LOGD("REMOVING \" CHARS ");
+    // " not really supported here
+    source = InplaceReplaceSimple(source, &sourceLength, "\"", " ");
+
+    // For now let's hope no extensions are used
+    // TODO deal with extensions
+    SHUT_LOGD("REMOVING EXTENSIONS");
+    source = RemoveUnsupportedExtensions(source);
+
+    // OpenGL natively supports non const global initializers, not OPENGL ES except if we add an extension
+    SHUT_LOGD("ADDING EXTENSIONS\n");
+    int insertPoint = FindPositionAfterDirectives(source);
+    SHUT_LOGD("INSERT POINT: %i\n", insertPoint);
+    source = InplaceReplaceByIndex(source, &sourceLength, insertPoint, insertPoint-1, "\n#extension GL_EXT_shader_non_constant_global_initializers : enable\n");
+
+    SHUT_LOGD("REPLACING mod OPERATORS");
+    // No support for % operator, so we replace it
+    source = ReplaceModOperator(source, &sourceLength);
+
+    SHUT_LOGD("COERCING INT TO FLOATS");
     // Hey we don't want to deal with implicit type stuff
-    source = CoerceIntToFloat(source);
+    source = CoerceIntToFloat(source, &sourceLength);
 
+    SHUT_LOGD("FIXING ARRAY ACCESS");
     // Avoid any weird type trying to be an index for an array
-    source = ForceIntegerArrayAccess(source);
+    source = ForceIntegerArrayAccess(source, &sourceLength);
 
+    SHUT_LOGD("WRAPPING FUNCTION");
     // Since everything is a float, we need to overload WAY TOO MANY functions
-    source = WrapIvecFunctions(source);
+    source = WrapIvecFunctions(source, &sourceLength);
 
+    // Draw buffers aren't dealt the same on OPEN GL|ES
+    if(shader_source->type == GL_FRAGMENT_SHADER && strstr(source, "#version 310 es")){
+        SHUT_LOGD("REPLACING FRAG DATA");
+        source = ReplaceGLFragData(source, &sourceLength);
+        SHUT_LOGD("REPLACING FRAG COLOR");
+        source = ReplaceGLFragColor(source, &sourceLength);
+    }
+    SHUT_LOGD("VGPU END: \n%s", source);
     return source;
 }
 
-char * WrapIvecFunctions(char * source){
-    source = WrapFunction(source, "texelFetch", "vgpu_texelFetch", "\nvec4 vgpu_texelFetch(sampler2D sampler, vec2 P, float lod){return texelFetch(sampler,ivec2(int(P.x),int(P.y)),int(lod));}");
+char * WrapIvecFunctions(char * source, int * sourceLength){
+    source = WrapFunction(source, sourceLength, "texelFetch", "vgpu_texelFetch", "\nvec4 vgpu_texelFetch(sampler2D sampler, vec2 P, float lod){return texelFetch(sampler,ivec2(int(P.x),int(P.y)),int(lod));}");
 
 
     return source;
@@ -71,16 +120,15 @@ char * WrapIvecFunctions(char * source){
  * @param function The wrapper function itself
  * @return The shader as a string, maybe in a different memory location
  */
-char * WrapFunction(char * source, char * functionName, char * wrapperFunctionName, char * wrapperFunction){
+char * WrapFunction(char * source, int * sourceLength, char * functionName, char * wrapperFunctionName, char * wrapperFunction){
     // Okay, we have a few cases to distinguish to make sure we don't replace something unintended:
     // Let's say we want to replace a "FunctionName"
     // float FunctionNameResult ...             ----- something between FunctionName and the ( , skip it.
     // BiggerFunctionName(...                   ----- FunctionName part of another function ! Skip it.
     // Function(FunctionName( ...               ----- There is a call to function name
 
-    int sourceLength = strlen(source);
-    char * findStringPtr = NULL;
-    findStringPtr = FindString(source, functionName);
+
+    const char * findStringPtr = FindString(source, functionName);
     if(findStringPtr){
         // Check the right end
         for(int i= strlen(functionName); 1; ++i){
@@ -94,8 +142,8 @@ char * WrapFunction(char * source, char * functionName, char * wrapperFunctionNa
         if(isValidFunctionName(findStringPtr[0])) return source; // Var or function name
         // At this point, the call is real, so just replace them
         int insertPoint = FindPositionAfterDirectives(source);
-        source = InplaceReplaceSimple(source, &sourceLength, functionName, wrapperFunctionName);
-        source = InplaceReplaceByIndex(source, &sourceLength, insertPoint, insertPoint-1, wrapperFunction);
+        source = InplaceReplaceSimple(source, sourceLength, functionName, wrapperFunctionName);
+        source = InplaceReplaceByIndex(source, sourceLength, insertPoint, insertPoint-1, wrapperFunction);
         SHUT_LOGD("WHAT THE FUCK IS BROKEN TIMES TWO : \n%s", wrapperFunction);
     }
     return source;
@@ -106,17 +154,16 @@ char * WrapFunction(char * source, char * functionName, char * wrapperFunctionNa
  * @param source The shader as a string
  * @return The shader as a string, maybe in a different memory location
  */
-char * ReplaceModOperator(char * source){
-    char * modelString = "((x) - (y) * (floor( (x) / (y) )))";
-    int sourceLength = strlen(source);
+char * ReplaceModOperator(char * source, int * sourceLength){
+    char * modelString = " mod(x, y) ";
     int startIndex, endIndex = 0;
     int * startPtr = &startIndex, *endPtr = &endIndex;
 
-    for(int i=0;i<sourceLength; ++i){
+    for(int i=0;i<*sourceLength; ++i){
         if(source[i] != '%') continue;
         // A mod operator is found !
         char * leftOperand = GetOperandFromOperator(source, i, 0, startPtr);
-        char * rightOperand = GetOperandFromOperator(source, i, 1, endPtr);
+        char * rightOperand = GetOperandFromOperator(source,  i, 1, endPtr);
 
         // Generate a model string to be inserted
         char * replacementString = malloc(strlen(modelString) + 1);
@@ -126,7 +173,7 @@ char * ReplaceModOperator(char * source){
         replacementString = InplaceReplace(replacementString, &replacementSize, "y", rightOperand);
 
         // Insert the new string
-        source = InplaceReplaceByIndex(source, &sourceLength, startIndex, endIndex, replacementString);
+        source = InplaceReplaceByIndex(source, sourceLength, startIndex, endIndex, replacementString);
 
         // Free all the temporary strings
         free(leftOperand);
@@ -144,24 +191,34 @@ char * ReplaceModOperator(char * source){
  * @return The shader as a string, maybe in a new memory location
  * @see ForceIntegerArrayAccess
  */
-char * CoerceIntToFloat(char * source){
+char * CoerceIntToFloat(char * source, int * sourceLength){
     // Let's go the "freestyle way"
-    int sourceLength = strlen(source);
 
-    // Scalar values
-    source = InplaceReplaceSimple(source, &sourceLength, "uint ", "float ");
-    source = InplaceReplaceSimple(source, &sourceLength, "int ", "float ");
+    // Step 1 is to translate keywords
+    // Attempt and loop unrolling -> worked well, time to fix my shit I guess
+    source = ReplaceVariableName(source, sourceLength, "int", "float");
+    // Coerce int constructors to float (that why the wrapper function isn't a function)
+    source = WrapFunction(source, sourceLength, "int", "float", "\n    ");
 
-    // Vectors
-    // TODO Avoid breaking variable name !
-    source = InplaceReplaceSimple(source, &sourceLength,"ivec", "vec");
+    /*
+    source = ReplaceVariableName(source, sourceLength, "uint", "float");
+
+    source = ReplaceVariableName(source, sourceLength, "ivec4", "vec4");
+    source = ReplaceVariableName(source, sourceLength, "ivec3", "vec3");
+    source = ReplaceVariableName(source, sourceLength, "ivec2", "vec2");
+    source = ReplaceVariableName(source, sourceLength, "bvec4", "vec4");
+    source = ReplaceVariableName(source, sourceLength, "bvec3", "vec3");
+    source = ReplaceVariableName(source, sourceLength, "bvec2", "vec2");
+     */
+    source = InplaceReplaceSimple(source, sourceLength, "ivec", "vec");
+    source = InplaceReplaceSimple(source, sourceLength, "uint ", "float");
 
     // Step 3 is slower.
     // We need to parse hardcoded values like 1 and turn it into 1.(0)
-    for(int i=0; i<sourceLength; ++i){
+    for(int i=0; i<*sourceLength; ++i){
 
-        // We avoid all preprocessor directives for now
-        if(source[i] == '#'){
+        // Avoid version directives
+        if(source[i] == '#' && (source[i + 1] == 'v' || source[i + 1] == 'l') ){
             // Look for the next line
             while (source[i] != '\n'){
                 i++;
@@ -185,7 +242,7 @@ char * CoerceIntToFloat(char * source){
             for(int j=1; 1; ++j){
                 if(isDigit(source[i-j])) continue;
                 if(isValidFunctionName(source[i-j])) break; // Function or variable name, don't coerce
-                if(source[i-j] == '.') break; // No coercion, float already
+                if(source[i-j] == '.' || source[i-j] == '+') break; // No coercion, float or scientific notation already
                 // Nothing found, should be coerced then
                 shouldBeCoerced = 1;
                 break;
@@ -195,12 +252,12 @@ char * CoerceIntToFloat(char * source){
         }
 
         // Now we know there is nothing related to the digit, turn it into a float
-        source = InplaceReplaceByIndex(source, &sourceLength, i+1, i, ".0");
+        source = InplaceReplaceByIndex(source, sourceLength, i+1, i, ".0");
     }
 
     // TODO Hacks for special built in values and typecasts ?
-    source = InplaceReplaceSimple(source, &sourceLength, "gl_VertexID", "float(gl_VertexID)");
-    source = InplaceReplaceSimple(source, &sourceLength, "gl_InstanceID", "float(gl_InstanceID)");
+    source = InplaceReplaceSimple(source, sourceLength, "gl_VertexID", "float(gl_VertexID)");
+    source = InplaceReplaceSimple(source, sourceLength, "gl_InstanceID", "float(gl_InstanceID)");
 
     return source;
 }
@@ -208,14 +265,13 @@ char * CoerceIntToFloat(char * source){
 /** Force all array accesses to use integers by adding an explicit typecast
  * @param source The shader as a string
  * @return The shader as a string, maybe at a new memory location */
-char * ForceIntegerArrayAccess(char* source){
+char * ForceIntegerArrayAccess(char* source, int * sourceLength){
     char * markerStart = "$";
     char * markerEnd = "`";
-    int sourceLength = strlen(source);
 
     // Step 1, we need to mark all [] that are empty and must not be changed
     int leftCharIndex = 0;
-    for(int i=0; i< sourceLength; ++i){
+    for(int i=0; i< *sourceLength; ++i){
         if(source[i] == '['){
             leftCharIndex = i;
             continue;
@@ -236,12 +292,12 @@ char * ForceIntegerArrayAccess(char* source){
     }
 
     // Step 2, replace the array accesses with a forced typecast version
-    source = InplaceReplaceSimple(source, &sourceLength, "]", ")]");
-    source = InplaceReplaceSimple(source, &sourceLength, "[", "[int(");
+    source = InplaceReplaceSimple(source, sourceLength, "]", ")]");
+    source = InplaceReplaceSimple(source, sourceLength, "[", "[int(");
 
     // Step 3, restore all marked empty []
-    source = InplaceReplaceSimple(source, &sourceLength, markerStart, "[");
-    source = InplaceReplaceSimple(source, &sourceLength, markerEnd, "]");
+    source = InplaceReplaceSimple(source, sourceLength, markerStart, "[");
+    source = InplaceReplaceSimple(source, sourceLength, markerEnd, "]");
 
     return source;
 }
@@ -432,6 +488,113 @@ char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand, 
     return operand;
 }
 
+/**
+ * Replace any gl_FragData[n] reference by creating an out variable with the manual layout binding
+ * @param source  The shader source as a string
+ * @return The shader as a string, maybe at a different memory location
+ */
+char * ReplaceGLFragData(char * source, int * sourceLength){
+
+    // 10 is arbitrary, but I don't expect the shader to use so many
+    // TODO I guess the array could be accessed with one or more spaces :think:
+    // TODO wait they can access via a variable !
+    for (int i = 0; i < 10; ++i) {
+        // Check for 2 forms on the glFragData and take the first one found
+        char needle[30];
+        sprintf(needle, "gl_FragData[%i]", i);
+
+        // Skip if the draw buffer isn't used at this index
+        char * useFragData = strstr(source, &needle[0]);
+        if(!useFragData){
+            sprintf(needle, "gl_FragData[int(%i.0)]", i);
+            char * useFragData = strstr(source, &needle[0]);
+            if(!useFragData) continue;
+        }
+
+        // Construct replacement string
+        char replacement[20];
+        char replacementLine[70];
+        sprintf(replacement, "vgpu_FragData%i", i);
+        sprintf(replacementLine, "\nlayout(location = %i) out mediump vec4 %s;\n", i, replacement);
+        int insertPoint = FindPositionAfterDirectives(source);
+
+        // And place them into the shader
+        source = InplaceReplaceSimple(source, sourceLength, &needle[0], &replacement[0]);
+        source = InplaceReplaceByIndex(source, sourceLength, insertPoint, insertPoint-1, &replacementLine[0]);
+    }
+    return source;
+}
+
+/**
+ * Replace the gl_FragColor
+ * @param source The shader as a string
+ * @return The shader a a string, maybe in a different memory location
+ */
+char * ReplaceGLFragColor(char * source, int * sourceLength){
+    if(strstr(source, "gl_FragColor")){
+        source = InplaceReplaceSimple(source, sourceLength, "gl_FragColor", "vgpu_FragColor");
+        int insertPoint = FindPositionAfterDirectives(source);
+        source = InplaceReplaceByIndex(source, sourceLength, insertPoint, insertPoint-1, "\nout mediump vec4 vgpu_FragColor;\n");
+    }
+    return source;
+}
+
+/**
+ * Remove all extensions right now by replacing them with spaces
+ * @param source The shader as a string
+ * @return The shader as a string, maybe in a different memory location
+ */
+char * RemoveUnsupportedExtensions(char * source){
+    //TODO remove only specific extensions ?
+    for(char * extensionPtr = strstr(source, "#extension "); extensionPtr; extensionPtr = strstr(source, "#extension ")){
+        int i = 0;
+        while(extensionPtr[i] != '\n'){
+            extensionPtr[i] = ' ';
+            ++i;
+        }
+    }
+    return source;
+}
+
+/**
+ * Replace the variable name in a shader, mostly used to avoid keyword clashing
+ * @param source The shader as a string
+ * @param initialName The initial name for the variable
+ * @param newName The new name for the variable
+ * @return The shader as a string, maybe in a different memory location
+ */
+char * ReplaceVariableName(char * source, int * sourceLength, char * initialName, char* newName) {
+
+    char * toReplace = malloc(strlen(initialName) + 3);
+    char * replacement = malloc(strlen(newName) + 3);
+    //char * chars = "()[].+-*/~!%<>&|;,{} \n\t";
+    char * charBefore = "([];+-*/~!%<>,&| \n\t";
+    char * charAfter = ")[];+-*/%<>;,|&. \n\t";
+
+    for (int i = 0; i < strlen(charBefore); ++i) {
+        for (int j = 0; j < strlen(charAfter); ++j) {
+            // Prepare the string to replace
+            toReplace[0] = charBefore[i];
+            strcpy(toReplace+1, initialName);
+            toReplace[strlen(initialName)+1] = charAfter[j];
+            toReplace[strlen(initialName)+2] = '\0';
+
+            // Prepare the replacement string
+            replacement[0] = charBefore[i];
+            strcpy(replacement+1, newName);
+            replacement[strlen(newName)+1] = charAfter[j];
+            replacement[strlen(newName)+2] = '\0';
+
+            source = InplaceReplaceSimple(source, sourceLength, toReplace, replacement);
+        }
+    }
+
+    free(toReplace);
+    free(replacement);
+
+    return source;
+}
+
 /** Replace the version by new version, period.
  * @param source The pointer to the start of the shader */
 char * GLSLHeader(char* source){
@@ -470,13 +633,13 @@ char * GLSLHeader(char* source){
 
 /** Remove 'const ' storage qualifier from variables inside {..} blocks
  * @param source The pointer to the start of the shader */
-char * RemoveConstInsideBlocks(char* source){
+char * RemoveConstInsideBlocks(char* source, int * sourceLength){
     int insideBlock = 0;
     char * keyword = "const \0";
     int keywordLength = strlen(keyword);
-    int sourceLength = strlen(source);
 
-    for(int i=0; i< sourceLength+1; ++i){
+
+    for(int i=0; i< *sourceLength+1; ++i){
         // Step 1, look for a block
         if(source[i] == '{'){
             insideBlock += 1;
@@ -497,8 +660,7 @@ char * RemoveConstInsideBlocks(char* source){
             }
             // A match is found, remove it
             if(keywordMatch){
-                source = InplaceReplaceByIndex(source, &sourceLength, i, i+j - 1, " ");
-                sourceLength = strlen(source);
+                source = InplaceReplaceByIndex(source, sourceLength, i, i+j - 1, " ");
                 continue;
             }
         }
@@ -521,7 +683,7 @@ int FindPositionAfterDirectives(char * source){
     if (position == NULL) return 0;
     for(int i=7; 1; ++i){
         if(position[i] == '\n'){
-            if(position[i+1] == '#') continue; // meaning another directive is present right after
+            if(position[i+1] == '#') continue; // a directive is present right after, skip
             return i;
         }
     }

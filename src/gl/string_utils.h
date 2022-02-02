@@ -28,5 +28,6 @@ const char* GetNextStr(char* pBuffer); // get a (static) copy of next str (until
 // those function don't try to be smart with separators...
 int CountStringSimple(char* pBuffer, const char* S);
 char* InplaceReplaceSimple(char* pBuffer, int* size, const char* S, const char* D);
+char * InplaceReplaceSimpleCount(char* pBuffer, int* size, const char* S, const char* D, unsigned count);
 
 #endif // _GL4ES_STRING_UTILS_H_
