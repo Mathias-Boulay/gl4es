@@ -9,6 +9,7 @@
 #include "list.h"
 #include "loader.h"
 #include "render.h"
+#include "buffers.h"
 
 //#define DEBUG
 #ifdef DEBUG
@@ -558,6 +559,13 @@ AliasExport(void,glDrawRangeElements,EXT,(GLenum mode,GLuint start,GLuint end,GL
 
 void APIENTRY_GL4ES gl4es_glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices) {
     DBG(printf("glDrawElements(%s, %d, %s, %p), vtx=%p map=%p, pending=%d\n", PrintEnum(mode), count, PrintEnum(type), indices, (glstate->vao->vertex)?glstate->vao->vertex->data:NULL, (glstate->vao->elements)?glstate->vao->elements->data:NULL, glstate->list.pending);)
+
+    glbuffer_t ** t = &glstate->vao->elements;
+    if(!t || *t == NULL){
+        DBG(printf("NO GL_ELEMENT_ARRAY_BINDING, skipping the call");)
+        return;
+    }
+
     // TODO: split for count > 65535?
     // special check for QUADS and TRIANGLES that need multiple of 4 or 3 vertex...
     count = adjust_vertices(mode, count);
