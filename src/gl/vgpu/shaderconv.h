@@ -21,6 +21,7 @@ char * ReplaceGLFragData(char * source, int * sourceLength);
 char * ReplaceGLFragColor(char * source, int * sourceLength);
 char * ReplaceVariableName(char * source, int * sourceLength, char * initialName, char* newName);
 char * RemoveUnsupportedExtensions(char * source);
+int doesShaderVersionContainsES(const char * source);
 
 
 char* GetOperandFromOperator(char* source, int operatorIndex, int rightOperand, int * limit);
