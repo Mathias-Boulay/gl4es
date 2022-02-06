@@ -36,6 +36,7 @@ char * ConvertShaderVgpu(struct shader_s * shader_source){
 
     // gles 1.1.4 doesn't deal with attribute conversion
     /*
+    SHUT_LOGD("FORCE REPLACE ATTRIBUTES/VARYING");
     if(shader_source->type == GL_VERTEX_SHADER){
         source = ReplaceVariableName(source, &sourceLength, "attribute", "in");
         source = ReplaceVariableName(source, &sourceLength, "varying", "out");
@@ -43,15 +44,9 @@ char * ConvertShaderVgpu(struct shader_s * shader_source){
         source = ReplaceVariableName(source, &sourceLength, "varying", "in");
     }*/
 
-
-    // Switch a few keywords
-    /*
-    if(vsh){
-        source = InplaceReplace(source, &sourceLength, "attribute\0", "in\0");
-        source = InplaceReplace(source, &sourceLength, "varying\0", "out\0");
-    }else{
-        source = InplaceReplace(source, &sourceLength, "varying\0", "in\0");
-    }*/
+    int insertEnable = FindPositionAfterDirectives(source);
+    //SHUT_LOGD("INJECTING GL_ENABLE");
+    //source = InplaceReplaceByIndex(source, &sourceLength, insertEnable, insertEnable-1, "\nglEnable(GL_CULL_FACE);\n" );
 
     // TODO Convert everything to float I guess :think:
     SHUT_LOGD("FUCKING UP PRECISION");
@@ -95,7 +90,7 @@ char * ConvertShaderVgpu(struct shader_s * shader_source){
     source = WrapIvecFunctions(source, &sourceLength);
 
     // Draw buffers aren't dealt the same on OPEN GL|ES
-    if(shader_source->type == GL_FRAGMENT_SHADER && strstr(source, "#version 310 es")){
+    if(shader_source->type == GL_FRAGMENT_SHADER && doesShaderVersionContainsES(source) ){
         SHUT_LOGD("REPLACING FRAG DATA");
         source = ReplaceGLFragData(source, &sourceLength);
         SHUT_LOGD("REPLACING FRAG COLOR");
@@ -103,6 +98,13 @@ char * ConvertShaderVgpu(struct shader_s * shader_source){
     }
     SHUT_LOGD("VGPU END: \n%s", source);
     return source;
+}
+
+int doesShaderVersionContainsES(const char * source){
+    if(FindString(source, "#version 300 es") || FindString(source, "#version 310 es") || FindString(source, "#version 320 es")){
+        return 1;
+    }
+    return 0;
 }
 
 char * WrapIvecFunctions(char * source, int * sourceLength){
@@ -505,10 +507,10 @@ char * ReplaceGLFragData(char * source, int * sourceLength){
 
         // Skip if the draw buffer isn't used at this index
         char * useFragData = strstr(source, &needle[0]);
-        if(!useFragData){
+        if(useFragData == NULL){
             sprintf(needle, "gl_FragData[int(%i.0)]", i);
-            char * useFragData = strstr(source, &needle[0]);
-            if(!useFragData) continue;
+            useFragData = strstr(source, &needle[0]);
+            if(useFragData == NULL) continue;
         }
 
         // Construct replacement string
@@ -679,7 +681,7 @@ char * RemoveConstInsideBlocks(char* source, int * sourceLength){
  * @return The index position after the #version line, start of the shader if not found
  */
 int FindPositionAfterDirectives(char * source){
-    char * position = FindString(source, "#version");
+    const char * position = FindString(source, "#version");
     if (position == NULL) return 0;
     for(int i=7; 1; ++i){
         if(position[i] == '\n'){
