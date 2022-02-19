@@ -26,32 +26,16 @@ char * ConvertShaderVgpu(struct shader_s * shader_source){
     char * source = shader_source->converted;
     int sourceLength = strlen(source);
 
-    //SHUT_LOGD("FORCING THE VERSION HEADER");
-    // Change version header
-    //source = GLSLHeader(source);
+
     // Remove 'const' storage qualifier
     //SHUT_LOGD("REMOVING CONST qualifiers");
     //source = RemoveConstInsideBlocks(source, &sourceLength);
     //source = ReplaceVariableName(source, &sourceLength, "const", " ");
 
-    // gles 1.1.4 doesn't deal with attribute conversion
-    /*
-    SHUT_LOGD("FORCE REPLACE ATTRIBUTES/VARYING");
-    if(shader_source->type == GL_VERTEX_SHADER){
-        source = ReplaceVariableName(source, &sourceLength, "attribute", "in");
-        source = ReplaceVariableName(source, &sourceLength, "varying", "out");
-    }else{
-        source = ReplaceVariableName(source, &sourceLength, "varying", "in");
-    }*/
 
-    int insertEnable = FindPositionAfterDirectives(source);
-    //SHUT_LOGD("INJECTING GL_ENABLE");
-    //source = InplaceReplaceByIndex(source, &sourceLength, insertEnable, insertEnable-1, "\nglEnable(GL_CULL_FACE);\n" );
-
-    // TODO Convert everything to float I guess :think:
-    SHUT_LOGD("FUCKING UP PRECISION");
-    source = ReplaceVariableName(source, &sourceLength, "highp", "lowp");
-    source = ReplaceVariableName(source, &sourceLength, "mediump", "lowp");
+    //SHUT_LOGD("FUCKING UP PRECISION");
+    //source = ReplaceVariableName(source, &sourceLength, "highp", "lowp");
+    //source = ReplaceVariableName(source, &sourceLength, "mediump", "lowp");
 
     // Avoid keyword clash with gl4es #define blocks
     SHUT_LOGD("REPLACING KEYWORDS");
@@ -60,10 +44,10 @@ char * ConvertShaderVgpu(struct shader_s * shader_source){
 
     SHUT_LOGD("REMOVING \" CHARS ");
     // " not really supported here
-    source = InplaceReplaceSimple(source, &sourceLength, "\"", " ");
+    source = InplaceReplaceSimple(source, &sourceLength, "\"", "");
 
     // For now let's hope no extensions are used
-    // TODO deal with extensions
+    // TODO deal with extensions but properly
     SHUT_LOGD("REMOVING EXTENSIONS");
     source = RemoveUnsupportedExtensions(source);
 
@@ -146,7 +130,7 @@ char * WrapFunction(char * source, int * sourceLength, char * functionName, char
         int insertPoint = FindPositionAfterDirectives(source);
         source = InplaceReplaceSimple(source, sourceLength, functionName, wrapperFunctionName);
         source = InplaceReplaceByIndex(source, sourceLength, insertPoint, insertPoint-1, wrapperFunction);
-        SHUT_LOGD("WHAT THE FUCK IS BROKEN TIMES TWO : \n%s", wrapperFunction);
+        //SHUT_LOGD("WHAT THE FUCK IS BROKEN TIMES TWO : \n%s", wrapperFunction);
     }
     return source;
 }
@@ -199,21 +183,11 @@ char * CoerceIntToFloat(char * source, int * sourceLength){
     // Step 1 is to translate keywords
     // Attempt and loop unrolling -> worked well, time to fix my shit I guess
     source = ReplaceVariableName(source, sourceLength, "int", "float");
-    // Coerce int constructors to float (that why the wrapper function isn't a function)
-    source = WrapFunction(source, sourceLength, "int", "float", "\n    ");
-
-    /*
+    source = WrapFunction(source, sourceLength, "int", "float", "\n ");
     source = ReplaceVariableName(source, sourceLength, "uint", "float");
+    source = WrapFunction(source, sourceLength, "uint", "float", "\n ");
+    // TODO Yes I could just do the same as above.
 
-    source = ReplaceVariableName(source, sourceLength, "ivec4", "vec4");
-    source = ReplaceVariableName(source, sourceLength, "ivec3", "vec3");
-    source = ReplaceVariableName(source, sourceLength, "ivec2", "vec2");
-    source = ReplaceVariableName(source, sourceLength, "bvec4", "vec4");
-    source = ReplaceVariableName(source, sourceLength, "bvec3", "vec3");
-    source = ReplaceVariableName(source, sourceLength, "bvec2", "vec2");
-     */
-    source = InplaceReplaceSimple(source, sourceLength, "ivec", "vec");
-    source = InplaceReplaceSimple(source, sourceLength, "uint ", "float");
 
     // Step 3 is slower.
     // We need to parse hardcoded values like 1 and turn it into 1.(0)
