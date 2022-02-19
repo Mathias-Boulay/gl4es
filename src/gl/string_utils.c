@@ -36,7 +36,14 @@ char * InplaceReplaceByIndex(char* pBuffer, int* size, const int startIndex, con
     //SHUT_LOGD("BY INDEX: %s", replacement);
     //SHUT_LOGD("BY INDEX: %i", strlen(replacement));
 
-    int length_difference = strlen(replacement) - (endIndex - startIndex); // Can be negative if repl is smaller
+    int length_difference;
+    if(endIndex < startIndex)
+        length_difference = strlen(replacement) + (endIndex - startIndex);
+    else if(endIndex == startIndex)
+        length_difference = strlen(replacement) - 1; // The initial char gets replaced
+    else
+        length_difference = strlen(replacement) - (endIndex - startIndex); // Can be negative if repl is smaller
+
     pBuffer = ResizeIfNeeded(pBuffer, size, length_difference);
     //SHUT_LOGD("BEFORE MOVING: \n%s", pBuffer);
     // Move the end of the string
