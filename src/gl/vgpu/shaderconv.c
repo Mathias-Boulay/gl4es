@@ -33,9 +33,9 @@ char * ConvertShaderVgpu(struct shader_s * shader_source){
     //source = ReplaceVariableName(source, &sourceLength, "const", " ");
 
 
-    //SHUT_LOGD("FUCKING UP PRECISION");
-    //source = ReplaceVariableName(source, &sourceLength, "highp", "lowp");
-    //source = ReplaceVariableName(source, &sourceLength, "mediump", "lowp");
+    SHUT_LOGD("FUCKING UP PRECISION");
+    source = ReplaceVariableName(source, &sourceLength, "highp", "lowp");
+    source = ReplaceVariableName(source, &sourceLength, "mediump", "lowp");
 
     // Avoid keyword clash with gl4es #define blocks
     SHUT_LOGD("REPLACING KEYWORDS");
@@ -187,6 +187,8 @@ char * CoerceIntToFloat(char * source, int * sourceLength){
     source = ReplaceVariableName(source, sourceLength, "uint", "float");
     source = WrapFunction(source, sourceLength, "uint", "float", "\n ");
     // TODO Yes I could just do the same as above.
+    
+    source = InplaceReplaceSimple(source, sourceLength, "ivec", "vec");
 
 
     // Step 3 is slower.
