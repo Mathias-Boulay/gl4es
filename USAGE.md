@@ -376,3 +376,21 @@ Force normals to be normliazed in FPE
 Blit to FB 0 force a SwapBuffer
 * 0 : Default, don't force a SwapBuffer when glBlitFramebuffer to draw fb0 is used (unless the full FB0 if blitted)
 * 1 : Force a SwapBuffer each time glBlitFramebuffer on FB0 is used (can help some windowed Wine games)
+
+##### LIBGL_VGPU_DUMP
+Log to the console all shaders before and after passing through the VGPU shader conversion pipeline
+* 0 : Default, don't log anything
+* 1 : Log every shader going though the pipeline
+
+##### LIBGL_VGPU_FORCE
+Force the vgpu shader conversion pipeline to convert every shader.
+* 0 : Default, don't convert #version 100 shaders
+* 1 : Convert every shader, regardless of the #version directive
+
+##### LIBGL_VGPU_PRECISION
+Override the precision used on the pipeline
+* 0 : Default, no changes are made
+* 1 : Force highp where possible
+* 2 : Force mediump where possible
+* 3 : Force lowp where possible
+  Many drivers map lowp to the same precision as mediump

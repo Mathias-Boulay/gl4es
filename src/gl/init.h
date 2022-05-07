@@ -85,4 +85,13 @@ typedef struct _globals4es {
 
 extern globals4es_t globals4es;
 
+
+typedef struct _globalsvgpu {
+    int vgpu_dump;         // Whether vgpu dumps the shader input and output.
+    int vgpu_force_conv;   // Whether vgpu is forced to convert all shaders
+    int vgpu_precision;    // The level of precision used by vgpu
+} globalsvgpu_t;
+
+extern globalsvgpu_t globalsvgpu;
+
 #endif // _GL4ES_INIT_H_

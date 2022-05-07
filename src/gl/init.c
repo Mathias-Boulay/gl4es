@@ -32,6 +32,8 @@ void fpe_shader_reset_internals();
 #endif
 
 globals4es_t globals4es = {0};
+globalsvgpu_t globalsvgpu = {0};
+
 
 #if defined(PANDORA) || defined(CHIP) || defined(GOA_CLONE)
 static void fast_math() {
@@ -653,6 +655,11 @@ void initialize_gl4es() {
           SHUT_LOGD_NOPREFIX("Fragment  ");
       SHUT_LOGD_NOPREFIX("\n");
     }
+
+    // VGPU pipeline stuff
+    env(LIBGL_VGPU_DUMP, globalsvgpu.vgpu_dump, "Dump the content of VGPU shader conversion");
+    env(LIBGL_VGPU_FORCE, globalsvgpu.vgpu_force_conv, "Force VGPU pipeline to convert every shader")
+    globalsvgpu.vgpu_precision = ReturnEnvVarIntDef("LIBGL_VGPU_PRECISION", 0);
 
     env(LIBGL_NOCLEAN, globals4es.noclean, "Don't clean Context when destroy");
 

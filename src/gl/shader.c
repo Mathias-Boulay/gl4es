@@ -8,6 +8,7 @@
 #include "loader.h"
 #include "shaderconv.h"
 #include "string_utils.h"
+#include "vgpu/shaderconv.h"
 
 //#define DEBUG
 #ifdef DEBUG
@@ -232,8 +233,11 @@ void APIENTRY_GL4ES gl4es_glShaderSource(GLuint shader, GLsizei count, const GLc
         // adapt shader if needed (i.e. not an es2 context and shader is not #version 100)
         if(glstate->glsl->es2 && !strncmp(glshader->source, "#version 100", 12))
             glshader->converted = strdup(glshader->source);
-        else
+        else{
             glshader->converted = ConvertShader(glshader->source, glshader->type==GL_VERTEX_SHADER?1:0, &glshader->need);
+            glshader->converted = ConvertShaderVgpu(glshader);
+        }
+
         }
         // send source to GLES2 hardware if any
         gles_glShaderSource(shader, 1, (const GLchar * const*)((glshader->converted)?(&glshader->converted):(&glshader->source)), NULL);
@@ -291,6 +295,7 @@ void redoShader(GLuint shader, shaderconv_need_t *need) {
     free(glshader->converted);
     memcpy(&glshader->need, need, sizeof(shaderconv_need_t));
     glshader->converted = ConvertShader(glshader->source, glshader->type==GL_VERTEX_SHADER?1:0, &glshader->need);
+    glshader->converted = ConvertShaderVgpu(glshader);
     // send source to GLES2 hardware if any
     gles_glShaderSource(shader, 1, (const GLchar * const*)((glshader->converted)?(&glshader->converted):(&glshader->source)), NULL);
     // recompile...

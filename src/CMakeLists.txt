@@ -252,7 +252,7 @@ endif()
 SET(EGL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/egl/egl.c
     ${CMAKE_CURRENT_SOURCE_DIR}/egl/lookup.c
-)
+        gl/vgpu/vgpu_string_utils.c gl/vgpu/vgpu_string_utils.h)
 
 SET(EGL_H
     ${CMAKE_CURRENT_SOURCE_DIR}/egl/egl.h
