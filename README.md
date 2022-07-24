@@ -26,7 +26,9 @@ Some known general limitations:
  * NPOT texture are supported, but not with GL_REPEAT / GL_MIRRORED, only GL_CLAMP will work properly (unless the GLES Hardware support NPOT)
  * Multiple Color attachment on Framebuffer are not supported
  * OcclusionQuery is implemented, but with a 0 bits precision
+ * int to float conversion is a bit janky
  * Probably many other things
+
 
 Status of the GLES2 backend
  * The FPE (Fixed Pipeline Emulator) has most OpenGL 1.5 drawing call implemented
