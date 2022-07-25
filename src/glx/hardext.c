@@ -422,15 +422,20 @@ void GetHardwareExtensions(int notest)
             hardext.glsl300es = 1;
         if(testGLSL("#version 310 es", 1))
             hardext.glsl310es = 1;
+        if(testGLSL("#version 320 es", 1))
+            hardext.glsl320es = 1;
     }
     if(hardext.glsl120) {
         SHUT_LOGD("GLSL 120 supported and used\n");
     }
     if(hardext.glsl300es) {
-        SHUT_LOGD("GLSL 300 es supported%s\n", (hardext.glsl120||hardext.glsl310es)?"":" and used");
+        SHUT_LOGD("GLSL 300 es supported%s\n", (hardext.glsl120||hardext.glsl310es||hardext.glsl320es)?"":" and used");
     }
     if(hardext.glsl310es) {
         SHUT_LOGD("GLSL 310 es supported%s\n", hardext.glsl120?"":" and used");
+    }
+    if(hardext.glsl320es){
+        SHUT_LOGD("GLSL 320 es supported%s\n", hardext.glsl120?"":" and used");
     }
 
 #ifndef NOEGL

@@ -32,6 +32,7 @@ void fpe_shader_reset_internals();
 #endif
 
 globals4es_t globals4es = {0};
+globalvgpu_t globalvgpu = {0};
 
 #if defined(PANDORA) || defined(CHIP) || defined(GOA_CLONE)
 static void fast_math() {
@@ -690,6 +691,16 @@ void initialize_gl4es() {
     if(GetEnvVarFloat("LIBGL_FB_TEX_SCALE",&globals4es.fbtexscale,0.0f)) {
       SHUT_LOGD("Framebuffer Textures will be scaled by %.2f\n", globals4es.fbtexscale);
 		}
+
+
+    // VGPU SPECIFIC STUFF
+    env(LIBGL_VGPU_DUMP, globalvgpu.dump_shader, "Dump the content of VGPU shader conversion");
+    env(LIBGL_VGPU_FORCE, globalvgpu.force_convertion, "Force VGPU pipeline to convert every shader")
+    env(LIBGL_VGPU_BACKPORT, globalvgpu.backport, "Attempt HARD to backport shaders to #version 100")
+    globalvgpu.precision = ReturnEnvVarIntDef("LIBGL_VGPU_PRECISION", 0);
+    if(globalvgpu.precision != 0){
+        SHUT_LOGD("VGPU default precision overridden ! (%i)", globalvgpu.precision);
+    }
 }
 
 

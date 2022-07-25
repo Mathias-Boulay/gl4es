@@ -82,6 +82,15 @@ typedef struct _globals4es {
  char version[50];
 } globals4es_t;
 
+
+typedef struct _vgpu{
+    int backport;
+    int dump_shader;
+    int force_convertion;
+    int precision;
+} globalvgpu_t;
+
 extern globals4es_t globals4es;
+extern globalvgpu_t globalvgpu;
 
 #endif // _GL4ES_INIT_H_
