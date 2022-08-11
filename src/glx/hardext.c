@@ -438,6 +438,11 @@ void GetHardwareExtensions(int notest)
         SHUT_LOGD("GLSL 320 es supported%s\n", hardext.glsl120?"":" and used");
     }
 
+    if(!hardext.glsl300es){
+        // We can't use the vgpu forward conversion
+        globalvgpu.backport = 1;
+    }
+
 #ifndef NOEGL
     if(strstr(egl_eglQueryString(eglDisplay, EGL_EXTENSIONS), "EGL_KHR_gl_colorspace")) {
         SHUT_LOGD("sRGB surface supported\n");
